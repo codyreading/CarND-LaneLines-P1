@@ -1,56 +1,68 @@
-# **Finding Lane Lines on the Road** 
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+# **Finding Lane Lines on the Road**
 
-<img src="examples/laneLines_thirdPass.jpg" width="480" alt="Combined Image" />
+[//]: # (Image References)
 
-Overview
+[image1]: ./examples/grayscale.jpg "Grayscale"
+
 ---
 
-When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  Naturally, one of the first things we would like to do in developing a self-driving car is to automatically detect lane lines using an algorithm.
+## Pipeline Architecture
 
-In this project you will detect lane lines in images using Python and OpenCV.  OpenCV means "Open-Source Computer Vision", which is a package that has many useful tools for analyzing images.  
+My pipeline consisted of 8 steps:
 
-To complete the project, two files will be submitted: a file containing project code and a file containing a brief write up explaining your solution. We have included template files to be used both for the [code](https://github.com/udacity/CarND-LaneLines-P1/blob/master/P1.ipynb) and the [writeup](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md).The code file is called P1.ipynb and the writeup template is writeup_template.md 
+1. Colour Selection
+2. Grayscale Conversion
+3. Gaussian Blur
+4. Edge Detection with Canny Transform
+5. Region of Interest Crop
+6. Hough Lines
+7. Line Combination
+8. Image Combination
 
-To meet specifications in the project, take a look at the requirements in the [project rubric](https://review.udacity.com/#!/rubrics/322/view)
+Each step is described in the following:
+
+#### Colour Selection
+The first step is to select only the yellow and white pixels for lane detection. This is achieved in the following procedure using OpenCV functions:
+
+1. Set an upper and lower HLS threshold for the yellow and white colours
+2. Convert the image to HLS
+3. Filter the images using the thresholds to create an image with only yellow pixels and an image with only white pixels
+4. Combine the white and yellow images
+5. Use the combined image as a mask to select only the yellow and white pixels in the original RGB image.
+
+HSL is used since this colour space makes it easier to isolate yellow and white from the rest of the image.
+
+#### Grayscale Conversion
+The next step is to do a grayscale conversion, which is done with a simple OpenCV conversion. This is done to simplify the further procedure as colour is no longer needed for edge detection.
+
+#### Gaussian Blur
+Next, the Gaussian blur is performed to reduce the effects of noise, which will make edge detection much more difficult. This is also achieved with a simple OpenCV function. Different kernel sizes were experimented, and it is found that a size of 3 achieved the best results.
+
+#### Canny Edge Detection
+After, the Canny edge detection was accomplished with a simple OpenCV function. The Canny edge detection requires and upper and lower threshold as parameters, where the upper threshold sets the gradient limit for strong edges that will be included in the edge detection. Any gradient below the lower threshold is discarded as an edge, and gradients between the threshold will be included if it is connected to a strong edge. Recommended high:low thresholds rations are 3:1 or 2:1, and it was experimentally found that a lower threshold of 100 and a high threshold of 300 achieved good results. The output of the Canny edge detection is a black image with white pixels along the edges.
+
+#### Region of Interest Crop
+The edge detection algorithm outputs all edges in an image, but it is desired to only have the edges that correspond to lane lines. Therefore, a region of interest in image space can be defined where the lanes will occur inside. This can be formed using trapezoid connecting the bottom of the screen to about halfway up the screen with edges parallel to the lane lines. This will discard all edges from adjacent lanes, cars, etc.
+
+#### Hough Lines
+Next the edges need to have line segments fit through them. This is accomplished using a hough line transform, which looks at every point along the edge and finds the every possible line that fits through that point. These lines are plotted in hough space as polar coordinate parameters, and this is done for each point along the edge. The intersections in hough space correspond to lines that cross multiple points, which is likely to be a line segment that fits the edge. This is done using a voting system, and the output of this is multiple line segments along the edges.
+
+The threshold for number of intersections to detect a line is set as 5, and the minimum number of points that can form a line is set as 5 as well. Lastly the maximum gap between two points to be considered in the same line is set as 2.
+
+#### Line Combination
+After getting line segments, these need to be combined to form one line for the left lane and one for the right. The first step is to classify each line using the slope. Slope values that are small are discarded (since they likely do not correspond to a lane), while negative slope values correspond to left lanes and positive slope values correspond to right lanes due to the coordinate system that OpenCV uses. Once classified, the start and end points of each line segment are used as points, and a least squares linear regression method is used to fit a line to the left points and the right points to create a line for the each lane. The output of this is an image with the two lanes drawn.
+
+#### Image Combination
+The original image and the image with the two lanes are combined using an OpenCV function using a weighting function. This produces the final image for the pipeline.
 
 
-Creating a Great Writeup
----
-For this project, a great writeup should provide a detailed response to the "Reflection" section of the [project rubric](https://review.udacity.com/#!/rubrics/322/view). There are three parts to the reflection:
+## Potential Shortcomings
 
-1. Describe the pipeline
+One potential shortcoming would be the inability to handle any non-straight roads. This pipeline assumes the lanes are straight, but curved or banked roads will break this pipeline since a straight line is fit to the data points during the Line Combination step.
 
-2. Identify any shortcomings
+Another short coming is the inability to handle outliers in the line fitting method, as using least-squares method is highly susceptible to outliers.
 
-3. Suggest possible improvements
+## Possible Improvements
+To address the short coming of curved roads, higher order polynomials can be fit to the data points that will follow the curve of the road.
 
-We encourage using images in your writeup to demonstrate how your pipeline works.  
-
-All that said, please be concise!  We're not looking for you to write a book here: just a brief description.
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup. Here is a link to a [writeup template file](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md). 
-
-
-The Project
----
-
-## If you have already installed the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) you should be good to go!   If not, you should install the starter kit to get started on this project. ##
-
-**Step 1:** Set up the [CarND Term1 Starter Kit](https://classroom.udacity.com/nanodegrees/nd013/parts/fbf77062-5703-404e-b60c-95b78b2f3f9e/modules/83ec35ee-1e02-48a5-bdb7-d244bd47c2dc/lessons/8c82408b-a217-4d09-b81d-1bda4c6380ef/concepts/4f1870e0-3849-43e4-b670-12e6f2d4b7a7) if you haven't already.
-
-**Step 2:** Open the code in a Jupyter Notebook
-
-You will complete the project code in a Jupyter notebook.  If you are unfamiliar with Jupyter Notebooks, check out [Udacity's free course on Anaconda and Jupyter Notebooks](https://classroom.udacity.com/courses/ud1111) to get started.
-
-Jupyter is an Ipython notebook where you can run blocks of code and see results interactively.  All the code for this project is contained in a Jupyter notebook. To start Jupyter in your browser, use terminal to navigate to your project directory and then run the following command at the terminal prompt (be sure you've activated your Python 3 carnd-term1 environment as described in the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) installation instructions!):
-
-`> jupyter notebook`
-
-A browser window will appear showing the contents of the current directory.  Click on the file called "P1.ipynb".  Another browser window will appear displaying the notebook.  Follow the instructions in the notebook to complete the project.  
-
-**Step 3:** Complete the project and submit both the Ipython notebook and the project writeup
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
+Secondly, the use of RANSAC rather than using least-squares will be beneficial to fit a single line to all of the edges.
